@@ -7,12 +7,28 @@ if (!defined('ABSPATH')) {
 }
 
 use AllowDynamicProperties;
+use BitApps\Assist\Config;
+use BitApps\Assist\Deps\BitApps\WPKit\Hooks\Hooks;
 use BitApps\Assist\Deps\BitApps\WPKit\Http\Request\Request;
+use BitApps\Assist\Model\WidgetChannel;
 use WP_Query;
 
 #[AllowDynamicProperties]
 final class WpSearchController
 {
+    /**
+     * Channel name stored for the WP Search channel.
+     */
+    private const CHANNEL_NAME = 'WP-Search';
+
+    /**
+     * Post types the channel falls back to when an admin saves the
+     * channel without touching the post type checkboxes.
+     *
+     * @var string[]
+     */
+    private const DEFAULT_POST_TYPES = ['post', 'page'];
+
     public function wpSearch(Request $request)
     {
         $validated = $request->validate([
@@ -21,13 +37,64 @@ final class WpSearchController
             'postTypes.*' => ['nullable', 'string', 'sanitize:text'],
         ]);
 
-        $postTypes = $validated['postTypes'] ?? ['page', 'post'];
+        $requestedTypes = isset($validated['postTypes']) ? (array) $validated['postTypes'] : self::DEFAULT_POST_TYPES;
+
+        // Never trust the caller: the widget config decides which post types
+        // are searchable, not the request body.
+        $postTypes = array_intersect($requestedTypes, $this->getAllowedPostTypes());
 
         if (empty($postTypes)) {
-            return ['data' => [], 'pagination' => []];
+            return ['data' => [], 'pagination' => $this->getEmptyPagination()];
         }
 
-        return $this->getPageAndPosts($validated['search'], $validated['page'], $postTypes);
+        return $this->getPageAndPosts(
+            $validated['search'] ?? '',
+            $validated['page'] ?? 1,
+            array_values($postTypes)
+        );
+    }
+
+    /**
+     * Post types an anonymous caller is allowed to search.
+     *
+     * Union of the post types enabled on active WP Search channels, capped by
+     * the post types WordPress itself exposes publicly, so unconfigured or
+     * non-public post types can never be enumerated through this endpoint.
+     *
+     * @return string[]
+     */
+    private function getAllowedPostTypes()
+    {
+        $channels = WidgetChannel::where('status', 1)
+            ->where('channel_name', self::CHANNEL_NAME)
+            ->get(['config']);
+
+        $configured = [];
+
+        if (\is_array($channels)) {
+            foreach ($channels as $channel) {
+                $channelTypes = isset($channel->config->wp_post_types)
+                    ? (array) $channel->config->wp_post_types
+                    : self::DEFAULT_POST_TYPES;
+
+                $configured = array_merge($configured, $channelTypes);
+            }
+        }
+
+        $allowed = [];
+
+        foreach (array_unique($configured) as $postType) {
+            $postTypeObject = get_post_type_object($postType);
+
+            // Drop only what is positively known to be non-public. A type the
+            // admin picked that is not registered on front end requests stays,
+            // so this cannot silently break an existing configuration.
+            if (\is_null($postTypeObject) || !empty($postTypeObject->public)) {
+                $allowed[] = $postType;
+            }
+        }
+
+        return array_filter((array) Hooks::applyFilter(Config::withPrefix('wp_search_allowed_post_types'), $allowed), 'is_string');
     }
 
     private function getPageAndPosts($search, $page, $postTypes)

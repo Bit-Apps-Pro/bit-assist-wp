@@ -5,7 +5,7 @@ Tags: chat, chat widget, facebook messenger, whatsapp button, whatsapp chat
 Requires at least: 5.1
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.8.3
+Stable tag: 1.8.4
 License: GPLv2 or later
 
 Floating sticky chat button for WhatsApp Chat, Facebook Messenger, Telegram, Instagram, SMS, Call, Discord chat, TikTok, Line & 30+ channels
@@ -360,6 +360,9 @@ For a full list of every external service used, what data is sent, when it is se
 [external-services.md](https://github.com/Bit-Apps-Pro/bit-assist-wp/blob/main/external-services.md)
 
 == Changelog ==
+= v1.8.4 (Aug 18, 2026) =
+* Security: The WP Search channel now searches only the post types selected in its settings. Previously the search endpoint accepted any post type sent in the request, which could reveal the titles and links of non-public content such as form definitions and page-builder templates.
+
 = v1.8.3 (Jul 29, 2026) =
 * Improvement: The Call to Action delay can now be set up to 300 seconds (previously 60) and adjusts in 5-second steps.
 
