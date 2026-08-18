@@ -43,7 +43,19 @@ const {
 const frontendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const rootDir = path.resolve(frontendDir, '..')
 const outputDirectory = path.resolve(rootDir, outdir, pluginSlug)
-const outputZip = path.resolve(rootDir, outdir, `${pluginSlug}.zip`)
+
+const readPluginVersion = () => {
+  try {
+    const header = fse.readFileSync(path.resolve(rootDir, 'index.php'), 'utf8')
+    return header.match(/Version:\s*([\d.]+)/)?.[1] ?? ''
+  } catch {
+    return ''
+  }
+}
+
+const pluginVersion = readPluginVersion()
+const zipName = pluginVersion ? `${pluginSlug}-${pluginVersion}.zip` : `${pluginSlug}.zip`
+const outputZip = path.resolve(rootDir, outdir, zipName)
 
 const filesAndFolders = [
   'assets',
@@ -59,6 +71,7 @@ const filesAndFolders = [
 console.log('options passed:', {
   outdir,
   pluginSlug,
+  pluginVersion,
   zip,
   outputDirectory,
   cleanbuild,
